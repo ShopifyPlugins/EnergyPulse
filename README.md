@@ -1,27 +1,27 @@
-# EnergyPulse
+# BizBot
 
-European electricity spot price prediction & alert Telegram bot.
-
-Uses LSTM neural networks to forecast day-ahead electricity prices from the ENTSO-E Transparency Platform, helping EU households shift energy usage to the cheapest hours.
+White-label AI customer service bot for Telegram. Help small businesses automate customer support with an LLM-powered assistant trained on their own knowledge base.
 
 ## Features
 
-- **Real-time prices** — fetch today's hourly spot prices from ENTSO-E
-- **LSTM forecasting** — predict next 24h price curve based on 7-day input sequences
-- **Smart recommendations** — identify cheapest windows for EV charging, laundry, etc.
-- **Daily push alerts** — automatic forecast delivery at 20:00 CET via Telegram
-- **Multi-region** — supports DE/LU, FR, NL, AT, BE bidding zones
+- **AI-powered replies** — answers customer questions using any OpenAI-compatible LLM
+- **Knowledge base (RAG)** — admins upload FAQ/docs, bot retrieves relevant context before answering
+- **Conversation memory** — maintains chat history for natural multi-turn conversations
+- **Human escalation** — customers can request a human; all admins get notified instantly
+- **Admin dashboard** — manage knowledge base, customize prompts, view usage stats via Telegram commands
+- **SQLite persistence** — conversations, knowledge, and settings survive restarts
+- **Multi-language** — replies in whatever language the customer uses
 
 ## Architecture
 
 ```
 src/
-├── config.py       # Environment-based configuration
-├── fetcher.py      # ENTSO-E API client (day-ahead prices, EUR/kWh)
-├── predictor.py    # LSTM model (training + inference)
-├── formatter.py    # Telegram message formatting
-├── bot.py          # Command handlers + subscriber management
-└── main.py         # Entry point + APScheduler cron job
+├── config.py           # Environment-based configuration
+├── db.py               # SQLite database (knowledge, conversations, admins, settings)
+├── knowledge_base.py   # TF-IDF based knowledge retrieval (RAG)
+├── ai_engine.py        # LLM API wrapper with context injection
+├── bot.py              # Telegram handlers (customer + admin)
+└── main.py             # Entry point
 ```
 
 ## Quick Start
@@ -30,14 +30,14 @@ src/
 
 - Python 3.11+
 - [Telegram Bot Token](https://core.telegram.org/bots#botfather) from @BotFather
-- [ENTSO-E API Key](https://transparency.entsoe.eu/) (free registration)
+- An OpenAI API key (or any OpenAI-compatible endpoint)
 
 ### 2. Setup
 
 ```bash
 # Clone
-git clone https://github.com/ShopifyPlugins/Advanced-Lead-Time-Alert.git
-cd Advanced-Lead-Time-Alert
+git clone https://github.com/ShopifyPlugins/EnergyPulse.git
+cd EnergyPulse
 
 # Virtual environment
 python -m venv venv
@@ -48,7 +48,7 @@ pip install -r requirements.txt
 
 # Configuration
 cp .env.example .env
-# Edit .env and fill in your TELEGRAM_BOT_TOKEN and ENTSOE_API_KEY
+# Edit .env — fill in TELEGRAM_BOT_TOKEN, LLM_API_KEY, BUSINESS_NAME, ADMIN_PASSWORD
 ```
 
 ### 3. Run
@@ -59,79 +59,81 @@ python -m src.main
 
 ### 4. First Use
 
-Open your bot in Telegram, then:
+Open your bot in Telegram:
 
 ```
-/start        — Register and see available commands
-/train        — Train LSTM model on 90 days of historical data (run once)
-/predict      — Get tomorrow's price forecast
-/price        — See today's actual spot prices
-/zone DE_LU   — Switch bidding zone
-/subscribe    — Enable daily forecast push at 20:00 CET
+/start              — See welcome message
+/admin <password>   — Authenticate as admin
+/add FAQ            — Add a knowledge base entry (send content in next message)
+/list               — View all knowledge entries
 ```
+
+Then send any message as a customer — the bot will answer using the knowledge base + LLM.
 
 ## Bot Commands
 
+### Customer Commands
+
 | Command | Description |
 |---------|-------------|
-| `/start` | Register + show help |
-| `/price` | Today's hourly spot prices with visual chart |
-| `/predict` | LSTM-predicted next 24h prices with recommendations |
-| `/zone <CODE>` | Set bidding zone (DE_LU, FR, NL, AT, BE) |
-| `/subscribe` | Subscribe to daily 20:00 CET forecast push |
-| `/unsubscribe` | Stop daily alerts |
-| `/train` | Admin: retrain model on latest 90 days of data |
+| `/start` | Show welcome message |
+| `/help` | List available commands |
+| `/human` | Request human assistance (notifies all admins) |
+| *(any text)* | AI-generated reply based on knowledge base |
 
-## Supported Regions
+### Admin Commands
 
-| Code | Region |
-|------|--------|
-| `DE_LU` | Germany / Luxembourg |
-| `FR` | France |
-| `NL` | Netherlands |
-| `AT` | Austria |
-| `BE` | Belgium |
-
-## LSTM Model
-
-- **Input**: 168 hours (7 days) of hourly spot prices
-- **Architecture**: 2-layer LSTM (hidden=64) + FC head
-- **Output**: 24-hour price prediction vector
-- **Training data**: 90 days of ENTSO-E day-ahead prices
-- **Preprocessing**: MinMaxScaler normalization
+| Command | Description |
+|---------|-------------|
+| `/admin <password>` | Authenticate as admin |
+| `/add <title>` | Add knowledge entry (send content in next message) |
+| `/list` | List all knowledge base entries |
+| `/delete <id>` | Delete a knowledge entry |
+| `/stats` | View usage statistics |
+| `/setprompt` | Set custom AI system instructions |
+| `/setgreeting` | Set custom welcome message |
 
 ## Configuration
 
-All settings are managed via environment variables (`.env` file):
+All settings via environment variables (`.env` file):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TELEGRAM_BOT_TOKEN` | — | Telegram bot token from @BotFather |
-| `ENTSOE_API_KEY` | — | ENTSO-E Transparency Platform API key |
-| `DEFAULT_BIDDING_ZONE` | `DE_LU` | Default price zone |
-| `MODEL_PATH` | `models/lstm_price.pt` | LSTM model save path |
-| `SEQUENCE_LENGTH` | `168` | Input sequence length (hours) |
-| `PREDICTION_HOURS` | `24` | Prediction horizon (hours) |
-| `DAILY_FORECAST_HOUR` | `20` | Daily push time (CET, 24h format) |
+| `LLM_API_KEY` | — | OpenAI (or compatible) API key |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` | LLM API endpoint |
+| `LLM_MODEL` | `gpt-4o-mini` | Model name |
+| `BUSINESS_NAME` | `My Business` | Shown in welcome message and system prompt |
+| `ADMIN_PASSWORD` | `changeme` | Password for `/admin` authentication |
+| `DB_PATH` | `data/bizbot.db` | SQLite database path |
+| `CHUNK_SIZE` | `500` | Max characters per knowledge chunk |
+| `TOP_K` | `3` | Number of knowledge chunks retrieved per query |
+| `MAX_HISTORY` | `10` | Conversation messages included in LLM context |
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|------------|
 | Bot framework | python-telegram-bot 21.7 |
-| Price data | entsoe-py (ENTSO-E API) |
-| ML model | PyTorch (LSTM) |
-| Preprocessing | scikit-learn, pandas, numpy |
-| Scheduling | APScheduler |
+| LLM client | openai (any OpenAI-compatible API) |
+| Knowledge retrieval | scikit-learn TF-IDF + cosine similarity |
+| Database | SQLite |
 | Config | python-dotenv |
+
+## How It Works
+
+1. Business owner creates a Telegram bot via @BotFather
+2. Configures BizBot with their bot token and LLM API key
+3. Adds FAQ/product info/policies to the knowledge base via `/add`
+4. Customers message the bot — BizBot retrieves relevant knowledge, injects it into the LLM prompt, and generates a contextual reply
+5. If the bot can't answer, customers type `/human` to escalate
 
 ## Deployment
 
-For production, a $5/month VPS (e.g. Hetzner, DigitalOcean) is sufficient:
+A $5/month VPS (e.g. Hetzner, DigitalOcean) is sufficient:
 
 ```bash
-# Run with systemd or screen/tmux
-nohup python -m src.main > energypulse.log 2>&1 &
+nohup python -m src.main > bizbot.log 2>&1 &
 ```
 
 ## License

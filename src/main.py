@@ -1,10 +1,7 @@
 import logging
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-
-from src.bot import create_bot, send_daily_forecasts
-from src.config import DAILY_FORECAST_HOUR
+from src import db
+from src.bot import create_bot
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -14,19 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    logger.info("Starting EnergyPulse bot...")
+    logger.info("Starting BizBot...")
+    db.init_db()
     app = create_bot()
-
-    # Schedule daily forecast push
-    scheduler = AsyncIOScheduler(timezone="Europe/Berlin")
-    scheduler.add_job(
-        send_daily_forecasts,
-        CronTrigger(hour=DAILY_FORECAST_HOUR, minute=0),
-        args=[app],
-    )
-    scheduler.start()
-    logger.info("Daily forecast scheduled at %02d:00 CET", DAILY_FORECAST_HOUR)
-
     app.run_polling()
 
 
